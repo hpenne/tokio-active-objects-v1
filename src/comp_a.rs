@@ -17,7 +17,7 @@ impl CompA {
         }
     }
 
-    pub async fn connect_to_b(&self, b: Arc<CompB>) {
+    pub fn connect_to_b(&self, b: Arc<CompB>) {
         let i = self.i.clone();
         tokio::spawn(async move {
             let mut inner = i.lock().await;
@@ -46,7 +46,7 @@ impl CompAImpl {
 
 #[async_trait]
 impl CommandsA for CompA {
-    async fn say_hello(&self) {
+    fn say_hello(&self) {
         let i = self.i.clone();
 
         // Using spawn here is problematic, because spawn creates a new task, and tasks
@@ -54,28 +54,28 @@ impl CommandsA for CompA {
         // connect_to_b, in which case hello fails.
         tokio::spawn(async move {
             let inner = i.lock().await;
-            inner.say_hello().await;
+            inner.say_hello();
         });
     }
 }
 
 #[async_trait]
 impl EventsB for CompA {
-    async fn hello_from_b(&self) {
+    fn hello_from_b(&self) {
         let i = self.i.clone();
         tokio::spawn(async move {
             let inner = i.lock().await;
-            inner.hello_from_b().await;
+            inner.hello_from_b();
         });
     }
 }
 
 #[async_trait]
 impl CommandsA for CompAImpl {
-    async fn say_hello(&self) {
+    fn say_hello(&self) {
         println!("CompA says hello");
         if let Some(b) = self.b.upgrade() {
-            b.hello_from_a().await;
+            b.hello_from_a();
         } else {
             println!("Failed to find b!")
         }
@@ -84,7 +84,7 @@ impl CommandsA for CompAImpl {
 
 #[async_trait]
 impl EventsB for CompAImpl {
-    async fn hello_from_b(&self) {
+    fn hello_from_b(&self) {
         println!("->A: Hello from B");
     }
 }
