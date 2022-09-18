@@ -13,6 +13,10 @@ The outer struct owns the inner through an `Arc<Mutex<ComponentImpl>>`, and call
 
 == Component topology
 
+The `main()` function creates two components of types CompA and CompB. CompA has a control interface/trait/channel (ControlA) used by main with a `say_hello()` method.  CompA is connected to CompB using the HelloEvent interface, and CompB is connected back to CompA using an interface of the same type.
+
+When `main()` calls `ControlA::say_hello()`, CompA prints "Hello" and calls `HelloEvent::hello_from()` on CompB.  This makes CompB print "B: Hello from A" and call `HelloEvent::hello_from()` on CompA, which in turn prints "A: Hello from B".  The circular nature of the call is intended to catch any deadlocks caused by a bad implementation.
+
 == Results
 
 The design works mostly as intended.  However, there is a significant problem caused by scheduling.
