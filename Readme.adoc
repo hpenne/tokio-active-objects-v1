@@ -7,7 +7,7 @@ This is a small prototype to test a design idea for "active objects" implemented
 The idea is to use traits to define component interfaces, then implement these traits in an "outer" struct that spawns a tokio task to actually run each method call.
 
 The actual method code is implemented in an inner struct, which has the actual implementation of all the component's traits.
-The task spawned in the outer struct when someone calls a trait method, will call on the same method in the inner struct to run the call on the spawned task.
+The task spawned by a method in the outer struct will call on the same method in the inner struct to run the call on the spawned task.
 
 The outer struct owns the inner through an `Arc<Mutex<ComponentImpl>>`, and calls on `lock()` inside the task to get thread safe access to the inner struct.
 
@@ -15,16 +15,18 @@ The outer struct owns the inner through an `Arc<Mutex<ComponentImpl>>`, and call
 
 == Results
 
-The design works mostly as intended.  However, there is a significant problem that must be caused scheduling.
+The design works mostly as intended.  However, there is a significant problem caused by scheduling.
 
 During startup, the main function makes two calls on CompA: One call to set the dependency on CompB and one call to trigger the first event ("say_hello").
 The implementation of the latter will also call on CompB.
 
-Most runs are successful, but occasionally tokio will run the task for "say_hello" _before_ the call that sets the dependency, and the call to CompB never happens.
+Most runs are successful, but occasionally the code for "say_hello" will execute _before_ the code that sets the dependency, and the call to CompB never happens.
 
 The problem is probably the scheduling of the host operating system.
-The two calls do not wait for the implementation, just spawns the tasks without waiting.
+The two calls do not wait for the implementation code to complete, just spawns the tasks without waiting.
 Tokio may run each task on a different OS thread, and the threads will race to call `lock()` on the mutex.
-Once in a while the task for the second operation will win and the application fails.
+Once in a while the task for the second method call will win and the application fails.
 
-It is not a problem that calls on different traits execute out of order, but for two calls on the same trait to execute out of order is not acceptable as the maintainer of the client code will not expect it and the application will accumulate intermittent logical errors.
+It is not a problem if calls from two clients execute out of order, but for two calls on the same client (trait) to execute out of order is not acceptable as the maintainer of the client code will not expect it and the application will accumulate intermittent logical errors.
+
+It seems that the problem lies in the design pattern itself and is probably not fixable.
