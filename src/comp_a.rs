@@ -10,10 +10,28 @@ pub struct CompA {
     i: Arc<Mutex<CompAImpl>>,
 }
 
+pub struct ClientProxy<T> {
+    i: Arc<Mutex<T>>,
+}
+
+pub struct WeakClientProxy<T> {
+    i: Weak<Mutex<T>>,
+}
+
 impl CompA {
     pub fn new() -> Self {
         Self {
             i: Arc::new(Mutex::new(CompAImpl::new())),
+        }
+    }
+
+    pub fn commands_a(&self) -> ClientProxy<CompAImpl> {
+        ClientProxy::<CompAImpl> { i: self.i.clone() }
+    }
+
+    pub fn events_b(&self) -> WeakClientProxy<CompAImpl> {
+        WeakClientProxy::<CompAImpl> {
+            i: Arc::downgrade(&self.i),
         }
     }
 
@@ -27,7 +45,7 @@ impl CompA {
     }
 }
 
-struct CompAImpl {
+pub struct CompAImpl {
     b: Weak<CompB>,
 }
 
@@ -45,7 +63,7 @@ impl CompAImpl {
 }
 
 #[async_trait]
-impl CommandsA for CompA {
+impl CommandsA for ClientProxy<CompAImpl> {
     fn say_hello(&self) {
         let i = self.i.clone();
 
@@ -60,13 +78,14 @@ impl CommandsA for CompA {
 }
 
 #[async_trait]
-impl EventsB for CompA {
+impl EventsB for WeakClientProxy<CompAImpl> {
     fn hello_from_b(&self) {
-        let i = self.i.clone();
-        tokio::spawn(async move {
-            let inner = i.lock().await;
-            inner.hello_from_b();
-        });
+        if let Some(i) = self.i.upgrade() {
+            tokio::spawn(async move {
+                let i = i.lock().await;
+                i.hello_from_b();
+            });
+        }
     }
 }
 

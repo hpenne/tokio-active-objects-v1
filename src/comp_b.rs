@@ -1,7 +1,7 @@
+use crate::comp_a::{CompAImpl, WeakClientProxy};
 use crate::interfaces::{EventsA, EventsB};
-use crate::CompA;
 use async_trait::async_trait;
-use std::sync::{Arc, Weak};
+use std::sync::Arc;
 use tokio::sync::Mutex;
 
 pub struct CompB {
@@ -15,28 +15,27 @@ impl CompB {
         }
     }
 
-    pub fn connect_to_a(&self, a: Arc<CompA>) {
+    pub fn connect_to_a(&self, a: WeakClientProxy<CompAImpl>) {
         let i = self.i.clone();
         tokio::spawn(async move {
             let mut inner = i.lock().await;
             println!("Connecting to a");
-            inner.connect_to_a(Arc::downgrade(&a));
+            inner.connect_to_a(a);
         });
     }
 }
+
 struct CompBImpl {
-    a: Weak<CompA>,
+    a: Option<WeakClientProxy<CompAImpl>>,
 }
 
 impl CompBImpl {
     pub fn new() -> Self {
-        Self {
-            a: Weak::<CompA>::new(),
-        }
+        Self { a: None }
     }
 
-    pub fn connect_to_a(&mut self, a: Weak<CompA>) {
-        self.a = a;
+    pub fn connect_to_a(&mut self, a: WeakClientProxy<CompAImpl>) {
+        self.a = Some(a);
         println!("Connected to a");
     }
 }
@@ -56,7 +55,7 @@ impl EventsA for CompB {
 impl EventsA for CompBImpl {
     fn hello_from_a(&self) {
         println!("->B: Hello from A");
-        if let Some(a) = self.a.upgrade() {
+        if let Some(ref a) = self.a {
             a.hello_from_b();
         } else {
             println!("Failed to find a!")
